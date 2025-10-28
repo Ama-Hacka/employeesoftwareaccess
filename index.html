@@ -6,6 +6,8 @@
     <title>Software Access Analyzer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -172,6 +174,62 @@
             margin-bottom: 15px;
         }
 
+        .export-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+        }
+
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .export-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .export-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
+        .export-btn.csv {
+            background: #28a745;
+            color: white;
+        }
+
+        .export-btn.csv:hover {
+            background: #218838;
+        }
+
+        .export-btn.excel {
+            background: #007bff;
+            color: white;
+        }
+
+        .export-btn.excel:hover {
+            background: #0056b3;
+        }
+
+        .export-label {
+            font-weight: 600;
+            color: #495057;
+            margin-right: 15px;
+        }
+
         .no-results {
             text-align: center;
             padding: 40px;
@@ -318,11 +376,12 @@
         <p class="subtitle">Upload and analyze software access requirements by employee position over time</p>
         
         <div class="file-upload" id="fileUpload">
-            <label for="csvFile" class="upload-label">
-                <strong>📊 Click to upload CSV file or drag & drop</strong>
-                <br><small>Supports employee software access request forms</small>
+            <label for="dataFile" class="upload-label">
+                <strong>📊 Click to upload file or drag & drop</strong>
+                <br><small>Supports CSV, Excel (.xls, .xlsx), and PDF files</small>
+                <br><small style="color: #666;">Employee software access request forms</small>
             </label>
-            <input type="file" id="csvFile" class="upload-input" accept=".csv" />
+            <input type="file" id="dataFile" class="upload-input" accept=".csv,.xls,.xlsx,.pdf" />
         </div>
 
         <div class="tabs" id="tabsContainer" style="display: none;">
@@ -346,6 +405,18 @@
                 <div class="stat-label">Avg Software per Position</div>
             </div>
         </div>
+
+            <div class="export-section" id="exportSection" style="display: none;">
+                <div class="export-buttons">
+                    <span class="export-label">📥 Export Analysis:</span>
+                    <button class="export-btn csv" onclick="exportToCSV()">
+                        📄 Download CSV
+                    </button>
+                    <button class="export-btn excel" onclick="exportToExcel()">
+                        📊 Download Excel
+                    </button>
+                </div>
+            </div>
 
             <input 
                 type="text" 
@@ -410,7 +481,7 @@
         let charts = {};
 
         // File upload handling
-        document.getElementById('csvFile').addEventListener('change', handleFileUpload);
+        document.getElementById('dataFile').addEventListener('change', handleFileUpload);
         
         const fileUploadArea = document.getElementById('fileUpload');
         fileUploadArea.addEventListener('dragover', (e) => {
@@ -426,8 +497,16 @@
             e.preventDefault();
             fileUploadArea.classList.remove('dragover');
             const files = e.dataTransfer.files;
-            if (files.length > 0 && files[0].name.endsWith('.csv')) {
-                handleFileUpload({ target: { files: [files[0]] } });
+            if (files.length > 0) {
+                const file = files[0];
+                const validExtensions = ['.csv', '.xls', '.xlsx', '.pdf'];
+                const isValidFile = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+                
+                if (isValidFile) {
+                    handleFileUpload({ target: { files: [file] } });
+                } else {
+                    alert('Please upload a valid file format: CSV, Excel (.xls, .xlsx), or PDF');
+                }
             }
         });
 
@@ -630,6 +709,7 @@
                 document.getElementById('stats').style.display = 'flex';
                 document.getElementById('searchBox').style.display = 'block';
                 document.getElementById('tabsContainer').style.display = 'flex';
+                document.getElementById('exportSection').style.display = 'block';
                 
                 console.log('UI updated successfully');
             } catch (error) {
@@ -1034,6 +1114,181 @@
             } catch (error) {
                 console.error('Error generating insights:', error);
                 document.getElementById('insightsList').innerHTML = '<div class="insight-item">⚠️ Error generating insights</div>';
+            }
+        }
+
+        function exportToCSV() {
+            try {
+                console.log('Exporting to CSV...');
+                
+                const exportData = [];
+                
+                // Add headers
+                exportData.push([
+                    'Position Title',
+                    'Employee Count',
+                    'Central Software',
+                    'Other Software', 
+                    'Sales Software',
+                    'Total Software Count'
+                ]);
+
+                // Add data rows
+                allData.forEach(item => {
+                    const centralSoftware = item.softwareByCategory.central
+                        .map(sw => `${sw.name} (${sw.count})`)
+                        .join(', ');
+                    
+                    const otherSoftware = item.softwareByCategory.other
+                        .map(sw => `${sw.name} (${sw.count})`)
+                        .join(', ');
+                    
+                    const salesSoftware = item.softwareByCategory.sales
+                        .map(sw => `${sw.name} (${sw.count})`)
+                        .join(', ');
+
+                    exportData.push([
+                        item.position,
+                        item.count,
+                        centralSoftware || 'None',
+                        otherSoftware || 'None',
+                        salesSoftware || 'None',
+                        item.software.length
+                    ]);
+                });
+
+                // Convert to CSV
+                const csvContent = exportData.map(row => 
+                    row.map(field => `"${field}"`).join(',')
+                ).join('\n');
+
+                // Download file
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', `hr_software_analysis_${new Date().toISOString().split('T')[0]}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                console.log('CSV export completed');
+            } catch (error) {
+                console.error('Error exporting CSV:', error);
+                alert('Error exporting CSV file: ' + error.message);
+            }
+        }
+
+        function exportToExcel() {
+            try {
+                console.log('Exporting to Excel...');
+                
+                // Create workbook
+                const wb = XLSX.utils.book_new();
+                
+                // Summary sheet
+                const summaryData = [
+                    ['HR Software Access Analysis Summary'],
+                    ['Generated on:', new Date().toLocaleDateString()],
+                    [''],
+                    ['Total Positions:', allData.length],
+                    ['Total Employees:', allData.reduce((sum, item) => sum + item.count, 0)],
+                    ['Average Tools per Position:', (allData.reduce((sum, pos) => sum + pos.software.length, 0) / allData.length).toFixed(1)],
+                    [''],
+                    ['Position', 'Employee Count', 'Central Software', 'Other Software', 'Sales Software', 'Total Tools']
+                ];
+
+                // Add position data
+                allData.forEach(item => {
+                    const centralSoftware = item.softwareByCategory.central
+                        .map(sw => `${sw.name} (${sw.count})`)
+                        .join(', ');
+                    
+                    const otherSoftware = item.softwareByCategory.other
+                        .map(sw => `${sw.name} (${sw.count})`)
+                        .join(', ');
+                    
+                    const salesSoftware = item.softwareByCategory.sales
+                        .map(sw => `${sw.name} (${sw.count})`)
+                        .join(', ');
+
+                    summaryData.push([
+                        item.position,
+                        item.count,
+                        centralSoftware || 'None',
+                        otherSoftware || 'None',
+                        salesSoftware || 'None',
+                        item.software.length
+                    ]);
+                });
+
+                const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+                XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
+
+                // Software breakdown sheet
+                const softwareBreakdown = [
+                    ['Software Breakdown by Category'],
+                    [''],
+                    ['Central Software', 'Usage Count'],
+                ];
+
+                // Get all central software
+                const centralSoftwareMap = new Map();
+                allData.forEach(item => {
+                    item.softwareByCategory.central.forEach(sw => {
+                        centralSoftwareMap.set(sw.name, (centralSoftwareMap.get(sw.name) || 0) + sw.count);
+                    });
+                });
+
+                Array.from(centralSoftwareMap.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .forEach(([name, count]) => {
+                        softwareBreakdown.push([name, count]);
+                    });
+
+                softwareBreakdown.push([''], ['Other Software', 'Usage Count']);
+
+                // Get all other software
+                const otherSoftwareMap = new Map();
+                allData.forEach(item => {
+                    item.softwareByCategory.other.forEach(sw => {
+                        otherSoftwareMap.set(sw.name, (otherSoftwareMap.get(sw.name) || 0) + sw.count);
+                    });
+                });
+
+                Array.from(otherSoftwareMap.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .forEach(([name, count]) => {
+                        softwareBreakdown.push([name, count]);
+                    });
+
+                softwareBreakdown.push([''], ['Sales Software', 'Usage Count']);
+
+                // Get all sales software
+                const salesSoftwareMap = new Map();
+                allData.forEach(item => {
+                    item.softwareByCategory.sales.forEach(sw => {
+                        salesSoftwareMap.set(sw.name, (salesSoftwareMap.get(sw.name) || 0) + sw.count);
+                    });
+                });
+
+                Array.from(salesSoftwareMap.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .forEach(([name, count]) => {
+                        softwareBreakdown.push([name, count]);
+                    });
+
+                const breakdownSheet = XLSX.utils.aoa_to_sheet(softwareBreakdown);
+                XLSX.utils.book_append_sheet(wb, breakdownSheet, 'Software Breakdown');
+
+                // Save file
+                XLSX.writeFile(wb, `hr_software_analysis_${new Date().toISOString().split('T')[0]}.xlsx`);
+                
+                console.log('Excel export completed');
+            } catch (error) {
+                console.error('Error exporting Excel:', error);
+                alert('Error exporting Excel file: ' + error.message);
             }
         }
     </script>
