@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Software Access Analyzer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 16px;
+            margin-bottom: 20px;
+            transition: border-color 0.3s;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-size: 18px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        thead {
+            background: #f8f9fa;
+            position: sticky;
+            top: 0;
+        }
+
+        th {
+            padding: 14px 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #e0e0e0;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        th:hover {
+            background: #e9ecef;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            color: #444;
+        }
+
+        tr:hover {
+            background: #f9f9f9;
+        }
+
+        .position-cell {
+            font-weight: 500;
+            color: #2c3e50;
+            text-transform: capitalize;
+        }
+
+        .count-cell {
+            font-weight: 600;
+            color: #4CAF50;
+            text-align: center;
+        }
+
+        .software-list {
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .software-item {
+            display: inline-block;
+            margin: 2px 4px 2px 0;
+            padding: 4px 8px;
+            background: #e3f2fd;
+            border-radius: 4px;
+            color: #1976d2;
+            font-size: 12px;
+        }
+
+        .software-item.central {
+            background: #e8f5e8;
+            color: #2e7d2e;
+            border-left: 3px solid #4CAF50;
+        }
+
+        .software-item.other {
+            background: #fff3e0;
+            color: #e65100;
+            border-left: 3px solid #FF9800;
+        }
+
+        .software-item.sales {
+            background: #f3e5f5;
+            color: #7b1fa2;
+            border-left: 3px solid #9C27B0;
+        }
+
+        .software-count {
+            font-weight: 600;
+            margin-left: 4px;
+        }
+
+        .category-header {
+            font-weight: 600;
+            margin: 10px 0 5px 0;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .category-header.central {
+            color: #2e7d2e;
+        }
+
+        .category-header.other {
+            color: #e65100;
+        }
+
+        .category-header.sales {
+            color: #7b1fa2;
+        }
+
+        .software-category {
+            margin-bottom: 15px;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-size: 16px;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .stat-item {
+            flex: 1;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #4CAF50;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        .sort-indicator {
+            margin-left: 6px;
+            font-size: 12px;
+        }
+
+        .file-upload {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            text-align: center;
+            background: #fafafa;
+            transition: all 0.3s;
+        }
+
+        .file-upload:hover {
+            border-color: #4CAF50;
+            background: #f0f8f0;
+        }
+
+        .file-upload.dragover {
+            border-color: #4CAF50;
+            background: #e8f5e8;
+        }
+
+        .upload-label {
+            display: block;
+            cursor: pointer;
+            padding: 10px;
+        }
+
+        .upload-input {
+            display: none;
+        }
+
+        .charts-section {
+            margin: 30px 0;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .chart-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 14px;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: #4CAF50;
+            border-bottom-color: #4CAF50;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .insights {
+            background: #f8f9ff;
+            border-left: 4px solid #4CAF50;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .insight-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .insight-item {
+            margin: 8px 0;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>HR Tool Access Trend Analyzer</h1>
+        <p class="subtitle">Upload and analyze software access requirements by employee position over time</p>
+        
+        <div class="file-upload" id="fileUpload">
+            <label for="csvFile" class="upload-label">
+                <strong>📊 Click to upload CSV file or drag & drop</strong>
+                <br><small>Supports employee software access request forms</small>
+            </label>
+            <input type="file" id="csvFile" class="upload-input" accept=".csv" />
+        </div>
+
+        <div class="tabs" id="tabsContainer" style="display: none;">
+            <button class="tab active" onclick="switchTab('overview')">📊 Overview</button>
+            <button class="tab" onclick="switchTab('trends')">📈 Trends</button>
+            <button class="tab" onclick="switchTab('insights')">💡 Insights</button>
+        </div>
+
+        <div id="overview" class="tab-content active">
+            <div id="stats" class="stats" style="display: none;">
+            <div class="stat-item">
+                <div class="stat-value" id="totalPositions">0</div>
+                <div class="stat-label">Unique Positions</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="totalEmployees">0</div>
+                <div class="stat-label">Total Employees</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="avgSoftware">0</div>
+                <div class="stat-label">Avg Software per Position</div>
+            </div>
+        </div>
+
+            <input 
+                type="text" 
+                id="searchBox" 
+                class="search-box" 
+                placeholder="Search by position title..."
+                style="display: none;"
+            >
+
+            <div id="loading" class="loading" style="display: none;">Analyzing data...</div>
+            <div id="tableContainer" style="display: none;">
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th onclick="sortTable('position')">Position Title <span id="sort-position"></span></th>
+                        <th onclick="sortTable('count')" style="text-align: center;">Employee Count <span id="sort-count">▼</span></th>
+                        <th>Software Access Required by Category</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+        <div id="noResults" class="no-results" style="display: none;">No results found</div>
+        </div>
+
+        <div id="trends" class="tab-content">
+            <div class="charts-section">
+                <div class="chart-container">
+                    <div class="chart-title">Most Requested Software Tools</div>
+                    <canvas id="softwareChart" width="400" height="300"></canvas>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">Positions Requiring Most Tools</div>
+                    <canvas id="positionChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+            <div class="charts-section">
+                <div class="chart-container">
+                    <div class="chart-title">Software Category Distribution</div>
+                    <canvas id="categoryChart" width="400" height="300"></canvas>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">Access Request Volume by Position</div>
+                    <canvas id="volumeChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div id="insights" class="tab-content">
+            <div class="insights">
+                <div class="insight-title">🎯 Key Insights</div>
+                <div id="insightsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allData = [];
+        let rawData = [];
+        let sortColumn = 'count';
+        let sortDirection = 'desc';
+        let charts = {};
+
+        // File upload handling
+        document.getElementById('csvFile').addEventListener('change', handleFileUpload);
+        
+        const fileUploadArea = document.getElementById('fileUpload');
+        fileUploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileUploadArea.classList.add('dragover');
+        });
+        
+        fileUploadArea.addEventListener('dragleave', () => {
+            fileUploadArea.classList.remove('dragover');
+        });
+        
+        fileUploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileUploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].name.endsWith('.csv')) {
+                handleFileUpload({ target: { files: [files[0]] } });
+            }
+        });
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            console.log('File selected:', file.name);
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('tabsContainer').style.display = 'none';
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                console.log('File read complete, parsing CSV...');
+                try {
+                    Papa.parse(e.target.result, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: function(results) {
+                            console.log('CSV parsed:', results.data.length, 'rows');
+                            console.log('Sample row:', results.data[0]);
+                            rawData = results.data;
+                            
+                            // Add small delay to show loading, then analyze
+                            setTimeout(() => {
+                                analyzeData(results.data);
+                            }, 100);
+                        },
+                        error: function(error) {
+                            console.error('CSV parsing error:', error);
+                            document.getElementById('loading').textContent = 'Error parsing CSV file. Please check the format.';
+                        }
+                    });
+                } catch (error) {
+                    console.error('File processing error:', error);
+                    document.getElementById('loading').textContent = 'Error processing file: ' + error.message;
+                }
+            };
+            
+            reader.onerror = function() {
+                console.error('File reading error');
+                document.getElementById('loading').textContent = 'Error reading file.';
+            };
+            
+            reader.readAsText(file);
+        }
+
+        function analyzeData(data) {
+            console.log('Starting data analysis...');
+            
+            if (!data || data.length === 0) {
+                document.getElementById('loading').textContent = 'No data found in CSV file.';
+                return;
+            }
+
+            const positionMap = new Map();
+            const globalSoftwareMap = new Map();
+            let processedRows = 0;
+
+            console.log('Available columns:', Object.keys(data[0]));
+
+            data.forEach((row, index) => {
+                try {
+                    // Try different column names for position
+                    let position = '';
+                    const positionKeys = Object.keys(row).filter(key => 
+                        key.toLowerCase().includes('position') || 
+                        key.toLowerCase().includes('title') ||
+                        key.toLowerCase().includes('job') ||
+                        key.toLowerCase().includes('role')
+                    );
+                    
+                    for (let key of positionKeys) {
+                        if (row[key] && row[key].trim() && row[key].trim() !== '') {
+                            position = row[key].trim();
+                            break;
+                        }
+                    }
+                    
+                    if (!position || position === 'Duplicate' || position.toLowerCase() === 'duplicate') {
+                        console.log('Skipping row', index, 'no valid position found');
+                        return;
+                    }
+
+                    position = position.toLowerCase();
+                    processedRows++;
+
+                    if (!positionMap.has(position)) {
+                        positionMap.set(position, {
+                            position: position,
+                            count: 0,
+                            softwareMap: new Map()
+                        });
+                    }
+
+                    const posData = positionMap.get(position);
+                    posData.count++;
+
+                    // Get software from specific columns only
+                    const centralSoftware = row['Central Software Access Needed:'] || row['Central Software Access Needed'] || '';
+                    const otherSoftware = row['Other Software Access Needed:'] || row['Other Software Access Needed'] || '';
+                    const salesSoftware = row['Sales Software Access Needed:'] || row['Sales Software Access Needed'] || '';
+                    
+                    // Process each category separately
+                    const softwareByCategory = {
+                        central: [],
+                        other: [],
+                        sales: []
+                    };
+
+                    if (centralSoftware.trim()) {
+                        softwareByCategory.central = centralSoftware.split(/[,;\n\r]/)
+                            .map(s => s.trim())
+                            .filter(s => s.length > 0 && s !== 'N/A' && s !== 'None' && !s.toLowerCase().includes('credential'));
+                    }
+
+                    if (otherSoftware.trim()) {
+                        softwareByCategory.other = otherSoftware.split(/[,;\n\r]/)
+                            .map(s => s.trim())
+                            .filter(s => s.length > 0 && s !== 'N/A' && s !== 'None' && !s.toLowerCase().includes('credential'));
+                    }
+
+                    if (salesSoftware.trim()) {
+                        softwareByCategory.sales = salesSoftware.split(/[,;\n\r]/)
+                            .map(s => s.trim())
+                            .filter(s => s.length > 0 && s !== 'N/A' && s !== 'None' && !s.toLowerCase().includes('credential'));
+                    }
+
+                    // Combine all software for counting
+                    let allSoftware = [...softwareByCategory.central, ...softwareByCategory.other, ...softwareByCategory.sales];
+
+                    console.log(`Row ${index}: Position: ${position}, Software found: ${allSoftware.length}`);
+
+                    // Store software by category in position data
+                    if (!posData.softwareByCategory) {
+                        posData.softwareByCategory = { central: new Map(), other: new Map(), sales: new Map() };
+                    }
+
+                    // Process each category
+                    ['central', 'other', 'sales'].forEach(category => {
+                        softwareByCategory[category].forEach(software => {
+                            const cleanSoftware = software
+                                .replace(/\(.*?\)/g, '')
+                                .replace(/\[.*?\]/g, '')
+                                .replace(/\s+/g, ' ')
+                                .trim();
+                            
+                            if (cleanSoftware && cleanSoftware.length > 1) {
+                                // Track for position by category
+                                const currentCount = posData.softwareByCategory[category].get(cleanSoftware) || 0;
+                                posData.softwareByCategory[category].set(cleanSoftware, currentCount + 1);
+                                
+                                // Track for position overall
+                                const overallCount = posData.softwareMap.get(cleanSoftware) || 0;
+                                posData.softwareMap.set(cleanSoftware, overallCount + 1);
+                                
+                                // Track globally
+                                const globalCount = globalSoftwareMap.get(cleanSoftware) || 0;
+                                globalSoftwareMap.set(cleanSoftware, globalCount + 1);
+                            }
+                        });
+                    });
+                } catch (error) {
+                    console.error('Error processing row', index, ':', error);
+                }
+            });
+
+            console.log(`Processed ${processedRows} rows, found ${positionMap.size} unique positions`);
+            console.log('Global software map size:', globalSoftwareMap.size);
+
+            allData = Array.from(positionMap.values()).map(pos => ({
+                position: pos.position,
+                count: pos.count,
+                software: Array.from(pos.softwareMap.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([name, count]) => ({ name, count })),
+                softwareByCategory: {
+                    central: Array.from((pos.softwareByCategory?.central || new Map()).entries())
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([name, count]) => ({ name, count })),
+                    other: Array.from((pos.softwareByCategory?.other || new Map()).entries())
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([name, count]) => ({ name, count })),
+                    sales: Array.from((pos.softwareByCategory?.sales || new Map()).entries())
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([name, count]) => ({ name, count }))
+                }
+            }));
+
+            console.log('Analysis complete, updating UI...');
+
+            try {
+                updateStats();
+                generateInsights(globalSoftwareMap);
+                createCharts(globalSoftwareMap);
+                displayData(allData);
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('tableContainer').style.display = 'block';
+                document.getElementById('stats').style.display = 'flex';
+                document.getElementById('searchBox').style.display = 'block';
+                document.getElementById('tabsContainer').style.display = 'flex';
+                
+                console.log('UI updated successfully');
+            } catch (error) {
+                console.error('Error updating UI:', error);
+                document.getElementById('loading').textContent = 'Error displaying results: ' + error.message;
+            }
+        }
+
+        function updateStats() {
+            const totalPositions = allData.length;
+            const totalEmployees = allData.reduce((sum, item) => sum + item.count, 0);
+            const avgSoftware = (allData.reduce((sum, item) => sum + item.software.length, 0) / totalPositions).toFixed(1);
+
+            document.getElementById('totalPositions').textContent = totalPositions;
+            document.getElementById('totalEmployees').textContent = totalEmployees;
+            document.getElementById('avgSoftware').textContent = avgSoftware;
+        }
+
+        function sortTable(column) {
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = column === 'count' ? 'desc' : 'asc';
+            }
+
+            document.querySelectorAll('.sort-indicator').forEach(el => el.textContent = '');
+            document.getElementById(`sort-${column}`).textContent = sortDirection === 'asc' ? '▲' : '▼';
+
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            const filteredData = allData.filter(item => 
+                item.position.includes(searchTerm)
+            );
+
+            displayData(filteredData);
+        }
+
+        function displayData(dataToDisplay) {
+            const sortedData = [...dataToDisplay].sort((a, b) => {
+                let aVal = a[sortColumn];
+                let bVal = b[sortColumn];
+
+                if (sortColumn === 'position') {
+                    return sortDirection === 'asc' 
+                        ? aVal.localeCompare(bVal)
+                        : bVal.localeCompare(aVal);
+                } else {
+                    return sortDirection === 'asc' 
+                        ? aVal - bVal
+                        : bVal - aVal;
+                }
+            });
+
+            const tableBody = document.getElementById('tableBody');
+            tableBody.innerHTML = '';
+
+            if (sortedData.length === 0) {
+                document.getElementById('tableContainer').style.display = 'none';
+                document.getElementById('noResults').style.display = 'block';
+                return;
+            }
+
+            document.getElementById('tableContainer').style.display = 'block';
+            document.getElementById('noResults').style.display = 'none';
+
+            sortedData.forEach(item => {
+                const row = document.createElement('tr');
+                
+                const positionCell = document.createElement('td');
+                positionCell.className = 'position-cell';
+                positionCell.textContent = item.position;
+                
+                const countCell = document.createElement('td');
+                countCell.className = 'count-cell';
+                countCell.textContent = item.count;
+                
+                const softwareCell = document.createElement('td');
+                softwareCell.className = 'software-list';
+                
+                let hasAnySoftware = false;
+
+                // Display Central Software
+                if (item.softwareByCategory.central.length > 0) {
+                    const centralDiv = document.createElement('div');
+                    centralDiv.className = 'software-category';
+                    
+                    const centralHeader = document.createElement('div');
+                    centralHeader.className = 'category-header central';
+                    centralHeader.textContent = '🏢 Central Software';
+                    centralDiv.appendChild(centralHeader);
+                    
+                    item.softwareByCategory.central.forEach(sw => {
+                        const span = document.createElement('span');
+                        span.className = 'software-item central';
+                        span.innerHTML = `${sw.name} <span class="software-count">(${sw.count})</span>`;
+                        centralDiv.appendChild(span);
+                    });
+                    
+                    softwareCell.appendChild(centralDiv);
+                    hasAnySoftware = true;
+                }
+
+                // Display Other Software
+                if (item.softwareByCategory.other.length > 0) {
+                    const otherDiv = document.createElement('div');
+                    otherDiv.className = 'software-category';
+                    
+                    const otherHeader = document.createElement('div');
+                    otherHeader.className = 'category-header other';
+                    otherHeader.textContent = '🔧 Other Software';
+                    otherDiv.appendChild(otherHeader);
+                    
+                    item.softwareByCategory.other.forEach(sw => {
+                        const span = document.createElement('span');
+                        span.className = 'software-item other';
+                        span.innerHTML = `${sw.name} <span class="software-count">(${sw.count})</span>`;
+                        otherDiv.appendChild(span);
+                    });
+                    
+                    softwareCell.appendChild(otherDiv);
+                    hasAnySoftware = true;
+                }
+
+                // Display Sales Software
+                if (item.softwareByCategory.sales.length > 0) {
+                    const salesDiv = document.createElement('div');
+                    salesDiv.className = 'software-category';
+                    
+                    const salesHeader = document.createElement('div');
+                    salesHeader.className = 'category-header sales';
+                    salesHeader.textContent = '💼 Sales Software';
+                    salesDiv.appendChild(salesHeader);
+                    
+                    item.softwareByCategory.sales.forEach(sw => {
+                        const span = document.createElement('span');
+                        span.className = 'software-item sales';
+                        span.innerHTML = `${sw.name} <span class="software-count">(${sw.count})</span>`;
+                        salesDiv.appendChild(span);
+                    });
+                    
+                    softwareCell.appendChild(salesDiv);
+                    hasAnySoftware = true;
+                }
+
+                if (!hasAnySoftware) {
+                    softwareCell.textContent = 'No software access recorded';
+                    softwareCell.style.color = '#999';
+                }
+                
+                row.appendChild(positionCell);
+                row.appendChild(countCell);
+                row.appendChild(softwareCell);
+                tableBody.appendChild(row);
+            });
+        }
+
+        document.getElementById('searchBox').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const filteredData = allData.filter(item => 
+                item.position.includes(searchTerm)
+            );
+            displayData(filteredData);
+        });
+
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(tabName).classList.add('active');
+        }
+
+        function createCharts(globalSoftwareMap) {
+            console.log('Creating charts...');
+            
+            try {
+                // Most requested software
+                const softwareData = Array.from(globalSoftwareMap.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 10);
+                
+                console.log('Top software data:', softwareData);
+                
+                if (charts.softwareChart) {
+                    charts.softwareChart.destroy();
+                }
+                
+                const softwareCtx = document.getElementById('softwareChart');
+                if (softwareCtx && softwareData.length > 0) {
+                    charts.softwareChart = new Chart(softwareCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: softwareData.map(([name]) => name.length > 15 ? name.substring(0, 15) + '...' : name),
+                            datasets: [{
+                                label: 'Requests',
+                                data: softwareData.map(([, count]) => count),
+                                backgroundColor: '#4CAF50',
+                                borderColor: '#45a049',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: { beginAtZero: true }
+                            }
+                        }
+                    });
+                    console.log('Software chart created');
+                }
+
+                // Positions requiring most tools
+                const positionToolCount = allData
+                    .map(pos => ({ position: pos.position, toolCount: pos.software.length }))
+                    .sort((a, b) => b.toolCount - a.toolCount)
+                    .slice(0, 10);
+
+                if (charts.positionChart) {
+                    charts.positionChart.destroy();
+                }
+                
+                const positionCtx = document.getElementById('positionChart');
+                if (positionCtx && positionToolCount.length > 0) {
+                    charts.positionChart = new Chart(positionCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: positionToolCount.map(p => p.position.length > 20 ? p.position.substring(0, 20) + '...' : p.position),
+                            datasets: [{
+                                label: 'Tools Required',
+                                data: positionToolCount.map(p => p.toolCount),
+                                backgroundColor: '#2196F3',
+                                borderColor: '#1976D2',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y',
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                x: { beginAtZero: true }
+                            }
+                        }
+                    });
+                    console.log('Position chart created');
+                }
+
+                // Software categories (simplified categorization)
+                const categories = categorizeSoftware(globalSoftwareMap);
+                if (charts.categoryChart) {
+                    charts.categoryChart.destroy();
+                }
+                
+                const categoryCtx = document.getElementById('categoryChart');
+                if (categoryCtx && Object.keys(categories).length > 0) {
+                    charts.categoryChart = new Chart(categoryCtx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: Object.keys(categories),
+                            datasets: [{
+                                data: Object.values(categories),
+                                backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40']
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false
+                        }
+                    });
+                    console.log('Category chart created');
+                }
+
+                // Volume by position
+                const volumeData = allData
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 8);
+
+                if (charts.volumeChart) {
+                    charts.volumeChart.destroy();
+                }
+                
+                const volumeCtx = document.getElementById('volumeChart');
+                if (volumeCtx && volumeData.length > 0) {
+                    charts.volumeChart = new Chart(volumeCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: volumeData.map(p => p.position.length > 15 ? p.position.substring(0, 15) + '...' : p.position),
+                            datasets: [{
+                                label: 'Employee Count',
+                                data: volumeData.map(p => p.count),
+                                backgroundColor: '#FF9800',
+                                borderColor: '#F57C00',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: { beginAtZero: true }
+                            }
+                        }
+                    });
+                    console.log('Volume chart created');
+                }
+            } catch (error) {
+                console.error('Error creating charts:', error);
+            }
+        }
+
+        function categorizeSoftware(softwareMap) {
+            const categories = {
+                'Communication': 0,
+                'Productivity': 0,
+                'Development': 0,
+                'Design': 0,
+                'Business': 0,
+                'Other': 0
+            };
+
+            const categoryKeywords = {
+                'Communication': ['slack', 'teams', 'zoom', 'discord', 'email', 'outlook'],
+                'Productivity': ['office', 'excel', 'word', 'powerpoint', 'sheets', 'docs', 'notion'],
+                'Development': ['github', 'gitlab', 'vscode', 'ide', 'docker', 'aws', 'azure'],
+                'Design': ['figma', 'sketch', 'adobe', 'photoshop', 'illustrator'],
+                'Business': ['salesforce', 'hubspot', 'crm', 'erp', 'jira', 'trello']
+            };
+
+            for (let [software, count] of softwareMap) {
+                const softwareLower = software.toLowerCase();
+                let categorized = false;
+
+                for (let [category, keywords] of Object.entries(categoryKeywords)) {
+                    if (keywords.some(keyword => softwareLower.includes(keyword))) {
+                        categories[category] += count;
+                        categorized = true;
+                        break;
+                    }
+                }
+
+                if (!categorized) {
+                    categories['Other'] += count;
+                }
+            }
+
+            return categories;
+        }
+
+        function generateInsights(globalSoftwareMap) {
+            try {
+                console.log('Generating insights...');
+                const insights = [];
+                
+                if (globalSoftwareMap.size === 0) {
+                    insights.push('⚠️ No software access data found in the uploaded file.');
+                } else {
+                    const totalRequests = Array.from(globalSoftwareMap.values()).reduce((sum, count) => sum + count, 0);
+                    const topSoftwareEntry = Array.from(globalSoftwareMap.entries()).sort((a, b) => b[1] - a[1])[0];
+                    const avgToolsPerPosition = allData.length > 0 ? 
+                        (allData.reduce((sum, pos) => sum + pos.software.length, 0) / allData.length).toFixed(1) : 0;
+                    
+                    insights.push(`📊 Total software access requests analyzed: ${totalRequests}`);
+                    
+                    if (topSoftwareEntry) {
+                        insights.push(`🏆 Most requested tool: ${topSoftwareEntry[0]} (${topSoftwareEntry[1]} requests)`);
+                    }
+                    
+                    insights.push(`📈 Average tools per position: ${avgToolsPerPosition}`);
+                    
+                    if (allData.length > 0) {
+                        const highDemandPositions = allData.filter(pos => pos.software.length > avgToolsPerPosition * 1.5);
+                        if (highDemandPositions.length > 0) {
+                            insights.push(`🎯 ${highDemandPositions.length} positions require significantly more tools than average`);
+                        }
+                    }
+
+                    const categories = categorizeSoftware(globalSoftwareMap);
+                    const categoryEntries = Object.entries(categories);
+                    if (categoryEntries.length > 0) {
+                        const topCategory = categoryEntries.sort((a, b) => b[1] - a[1])[0];
+                        insights.push(`📂 Most requested category: ${topCategory[0]} (${topCategory[1]} requests)`);
+                    }
+                }
+
+                document.getElementById('insightsList').innerHTML = insights
+                    .map(insight => `<div class="insight-item">${insight}</div>`)
+                    .join('');
+                    
+                console.log('Insights generated successfully');
+            } catch (error) {
+                console.error('Error generating insights:', error);
+                document.getElementById('insightsList').innerHTML = '<div class="insight-item">⚠️ Error generating insights</div>';
+            }
+        }
+    </script>
+</body>
+</html>
