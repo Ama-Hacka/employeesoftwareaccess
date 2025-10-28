@@ -230,6 +230,86 @@
             margin-right: 15px;
         }
 
+        .most-common-software {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .software-overview-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+        }
+
+        .software-overview-item {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 3px solid #ddd;
+        }
+
+        .software-overview-item.central {
+            border-left-color: #4CAF50;
+        }
+
+        .software-overview-item.other {
+            border-left-color: #FF9800;
+        }
+
+        .software-overview-item.sales {
+            border-left-color: #9C27B0;
+        }
+
+        .software-category-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .software-category-title.central {
+            color: #2e7d2e;
+        }
+
+        .software-category-title.other {
+            color: #e65100;
+        }
+
+        .software-category-title.sales {
+            color: #7b1fa2;
+        }
+
+        .software-name-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .software-name-badge {
+            background: #e9ecef;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            color: #495057;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .software-count-badge {
+            background: #6c757d;
+            color: white;
+            border-radius: 8px;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
         .no-results {
             text-align: center;
             padding: 40px;
@@ -406,6 +486,11 @@
             </div>
         </div>
 
+        <div class="most-common-software" id="mostCommonSoftware" style="display: none;">
+            <h3 style="color: #333; margin-bottom: 15px; font-size: 18px;">🎯 Most Common Software Access Requests</h3>
+            <div id="softwareList" class="software-overview-list"></div>
+        </div>
+
             <div class="export-section" id="exportSection" style="display: none;">
                 <div class="export-buttons">
                     <span class="export-label">📥 Export Analysis:</span>
@@ -514,13 +599,32 @@
             const file = event.target.files[0];
             if (!file) return;
 
-            console.log('File selected:', file.name);
+            console.log('File selected:', file.name, 'Type:', file.type);
             document.getElementById('loading').style.display = 'block';
             document.getElementById('tabsContainer').style.display = 'none';
 
+            const fileExtension = file.name.toLowerCase().split('.').pop();
+            
+            switch (fileExtension) {
+                case 'csv':
+                    handleCSVFile(file);
+                    break;
+                case 'xls':
+                case 'xlsx':
+                    handleExcelFile(file);
+                    break;
+                case 'pdf':
+                    handlePDFFile(file);
+                    break;
+                default:
+                    document.getElementById('loading').textContent = 'Unsupported file format. Please use CSV, Excel, or PDF files.';
+            }
+        }
+
+        function handleCSVFile(file) {
+            console.log('Processing CSV file...');
             const reader = new FileReader();
             reader.onload = function(e) {
-                console.log('File read complete, parsing CSV...');
                 try {
                     Papa.parse(e.target.result, {
                         header: true,
@@ -530,7 +634,6 @@
                             console.log('Sample row:', results.data[0]);
                             rawData = results.data;
                             
-                            // Add small delay to show loading, then analyze
                             setTimeout(() => {
                                 analyzeData(results.data);
                             }, 100);
@@ -554,6 +657,187 @@
             reader.readAsText(file);
         }
 
+        function handleExcelFile(file) {
+            console.log('Processing Excel file...');
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // Get the first worksheet
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    // Convert to JSON
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    
+                    // Convert to objects with headers
+                    if (jsonData.length < 2) {
+                        document.getElementById('loading').textContent = 'Excel file appears to be empty or has no data rows.';
+                        return;
+                    }
+                    
+                    const headers = jsonData[0];
+                    const rows = jsonData.slice(1);
+                    
+                    const parsedData = rows.map(row => {
+                        const obj = {};
+                        headers.forEach((header, index) => {
+                            obj[header] = row[index] || '';
+                        });
+                        return obj;
+                    });
+                    
+                    console.log('Excel parsed:', parsedData.length, 'rows');
+                    console.log('Sample row:', parsedData[0]);
+                    rawData = parsedData;
+                    
+                    setTimeout(() => {
+                        analyzeData(parsedData);
+                    }, 100);
+                    
+                } catch (error) {
+                    console.error('Excel processing error:', error);
+                    document.getElementById('loading').textContent = 'Error processing Excel file: ' + error.message;
+                }
+            };
+            
+            reader.onerror = function() {
+                console.error('File reading error');
+                document.getElementById('loading').textContent = 'Error reading Excel file.';
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+
+        function handlePDFFile(file) {
+            console.log('Processing PDF file...');
+            document.getElementById('loading').textContent = 'Processing PDF... This may take a moment.';
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const typedArray = new Uint8Array(e.target.result);
+                    
+                    pdfjsLib.getDocument(typedArray).promise.then(function(pdf) {
+                        console.log('PDF loaded, pages:', pdf.numPages);
+                        
+                        const pagePromises = [];
+                        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                            pagePromises.push(
+                                pdf.getPage(pageNum).then(function(page) {
+                                    return page.getTextContent().then(function(textContent) {
+                                        return textContent.items.map(item => item.str).join(' ');
+                                    });
+                                })
+                            );
+                        }
+                        
+                        Promise.all(pagePromises).then(function(pagesText) {
+                            const fullText = pagesText.join('\n');
+                            console.log('PDF text extracted, length:', fullText.length);
+                            
+                            // Parse PDF text into structured data
+                            const parsedData = parsePDFText(fullText);
+                            
+                            if (parsedData.length === 0) {
+                                document.getElementById('loading').textContent = 'No structured data found in PDF. Please ensure the PDF contains tabular data about software access requests.';
+                                return;
+                            }
+                            
+                            console.log('PDF parsed into', parsedData.length, 'records');
+                            rawData = parsedData;
+                            
+                            setTimeout(() => {
+                                analyzeData(parsedData);
+                            }, 100);
+                        });
+                        
+                    }).catch(function(error) {
+                        console.error('PDF parsing error:', error);
+                        document.getElementById('loading').textContent = 'Error parsing PDF file. Please ensure it\'s a valid PDF with text content.';
+                    });
+                    
+                } catch (error) {
+                    console.error('PDF processing error:', error);
+                    document.getElementById('loading').textContent = 'Error processing PDF file: ' + error.message;
+                }
+            };
+            
+            reader.onerror = function() {
+                console.error('File reading error');
+                document.getElementById('loading').textContent = 'Error reading PDF file.';
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+
+        function parsePDFText(text) {
+            // This is a basic PDF text parser - you may need to customize this based on your PDF format
+            console.log('Parsing PDF text...');
+            
+            const lines = text.split('\n').filter(line => line.trim().length > 0);
+            const parsedData = [];
+            
+            // Look for patterns that might indicate software access requests
+            const positionPattern = /(?:position|title|role|job)\s*:?\s*([^\n\t]+)/i;
+            const softwarePattern = /(?:software|access|tool|application)\s*:?\s*([^\n\t]+)/i;
+            
+            let currentRecord = {};
+            
+            lines.forEach((line, index) => {
+                const cleanLine = line.trim();
+                
+                // Try to identify position/title
+                const positionMatch = cleanLine.match(positionPattern);
+                if (positionMatch) {
+                    if (Object.keys(currentRecord).length > 0) {
+                        parsedData.push(currentRecord);
+                    }
+                    currentRecord = {
+                        'Position Title': positionMatch[1].trim(),
+                        'Central Software Access Needed': '',
+                        'Other Software Access Needed': '',
+                        'Sales Software Access Needed': ''
+                    };
+                }
+                
+                // Try to identify software mentions
+                const softwareMatch = cleanLine.match(softwarePattern);
+                if (softwareMatch && currentRecord['Position Title']) {
+                    const softwareText = softwareMatch[1].trim();
+                    
+                    // Categorize based on keywords
+                    if (cleanLine.toLowerCase().includes('central')) {
+                        currentRecord['Central Software Access Needed'] += (currentRecord['Central Software Access Needed'] ? ', ' : '') + softwareText;
+                    } else if (cleanLine.toLowerCase().includes('sales')) {
+                        currentRecord['Sales Software Access Needed'] += (currentRecord['Sales Software Access Needed'] ? ', ' : '') + softwareText;
+                    } else {
+                        currentRecord['Other Software Access Needed'] += (currentRecord['Other Software Access Needed'] ? ', ' : '') + softwareText;
+                    }
+                }
+                
+                // Look for common software names in the text
+                const commonSoftware = ['office', 'excel', 'word', 'powerpoint', 'outlook', 'teams', 'slack', 'zoom', 'salesforce', 'hubspot', 'jira', 'trello', 'adobe', 'photoshop', 'figma'];
+                commonSoftware.forEach(software => {
+                    if (cleanLine.toLowerCase().includes(software) && currentRecord['Position Title']) {
+                        if (!currentRecord['Other Software Access Needed'].toLowerCase().includes(software)) {
+                            currentRecord['Other Software Access Needed'] += (currentRecord['Other Software Access Needed'] ? ', ' : '') + software;
+                        }
+                    }
+                });
+            });
+            
+            // Add the last record
+            if (Object.keys(currentRecord).length > 0) {
+                parsedData.push(currentRecord);
+            }
+            
+            console.log('PDF parsing completed, found', parsedData.length, 'records');
+            return parsedData;
+        }
+
         function analyzeData(data) {
             console.log('Starting data analysis...');
             
@@ -567,6 +851,12 @@
             let processedRows = 0;
 
             console.log('Available columns:', Object.keys(data[0]));
+            console.log('Column analysis:');
+            Object.keys(data[0]).forEach(key => {
+                if (key.toLowerCase().includes('software') || key.toLowerCase().includes('access')) {
+                    console.log(`- Software related column: "${key}"`);
+                }
+            });
 
             data.forEach((row, index) => {
                 try {
@@ -605,10 +895,48 @@
                     const posData = positionMap.get(position);
                     posData.count++;
 
-                    // Get software from specific columns only
-                    const centralSoftware = row['Central Software Access Needed:'] || row['Central Software Access Needed'] || '';
-                    const otherSoftware = row['Other Software Access Needed:'] || row['Other Software Access Needed'] || '';
-                    const salesSoftware = row['Sales Software Access Needed:'] || row['Sales Software Access Needed'] || '';
+                    // Get software from specific columns - try multiple possible column names
+                    let centralSoftware = '';
+                    let otherSoftware = '';
+                    let salesSoftware = '';
+
+                    // Find central software column
+                    const centralKeys = Object.keys(row).filter(key => 
+                        key.toLowerCase().includes('central') && 
+                        (key.toLowerCase().includes('software') || key.toLowerCase().includes('access'))
+                    );
+                    for (let key of centralKeys) {
+                        if (row[key] && row[key].trim()) {
+                            centralSoftware = row[key].trim();
+                            break;
+                        }
+                    }
+
+                    // Find other software column
+                    const otherKeys = Object.keys(row).filter(key => 
+                        key.toLowerCase().includes('other') && 
+                        (key.toLowerCase().includes('software') || key.toLowerCase().includes('access'))
+                    );
+                    for (let key of otherKeys) {
+                        if (row[key] && row[key].trim()) {
+                            otherSoftware = row[key].trim();
+                            break;
+                        }
+                    }
+
+                    // Find sales software column
+                    const salesKeys = Object.keys(row).filter(key => 
+                        key.toLowerCase().includes('sales') && 
+                        (key.toLowerCase().includes('software') || key.toLowerCase().includes('access'))
+                    );
+                    for (let key of salesKeys) {
+                        if (row[key] && row[key].trim()) {
+                            salesSoftware = row[key].trim();
+                            break;
+                        }
+                    }
+
+                    console.log(`Row ${index}: Central: "${centralSoftware}", Other: "${otherSoftware}", Sales: "${salesSoftware}"`);
                     
                     // Process each category separately
                     const softwareByCategory = {
@@ -617,22 +945,25 @@
                         sales: []
                     };
 
-                    if (centralSoftware.trim()) {
+                    if (centralSoftware && centralSoftware.trim()) {
                         softwareByCategory.central = centralSoftware.split(/[,;\n\r]/)
                             .map(s => s.trim())
-                            .filter(s => s.length > 0 && s !== 'N/A' && s !== 'None' && !s.toLowerCase().includes('credential'));
+                            .filter(s => s.length > 0 && s !== 'N/A' && s !== 'None' && s !== '' && !s.toLowerCase().includes('credential'));
+                        console.log(`Central software found: ${softwareByCategory.central.length} items`);
                     }
 
-                    if (otherSoftware.trim()) {
+                    if (otherSoftware && otherSoftware.trim()) {
                         softwareByCategory.other = otherSoftware.split(/[,;\n\r]/)
                             .map(s => s.trim())
-                            .filter(s => s.length > 0 && s !== 'N/A' && s !== 'None' && !s.toLowerCase().includes('credential'));
+                            .filter(s => s.length > 0 && s !== 'N/A' && s !== 'None' && s !== '' && !s.toLowerCase().includes('credential'));
+                        console.log(`Other software found: ${softwareByCategory.other.length} items`);
                     }
 
-                    if (salesSoftware.trim()) {
+                    if (salesSoftware && salesSoftware.trim()) {
                         softwareByCategory.sales = salesSoftware.split(/[,;\n\r]/)
                             .map(s => s.trim())
-                            .filter(s => s.length > 0 && s !== 'N/A' && s !== 'None' && !s.toLowerCase().includes('credential'));
+                            .filter(s => s.length > 0 && s !== 'N/A' && s !== 'None' && s !== '' && !s.toLowerCase().includes('credential'));
+                        console.log(`Sales software found: ${softwareByCategory.sales.length} items`);
                     }
 
                     // Combine all software for counting
@@ -676,6 +1007,17 @@
 
             console.log(`Processed ${processedRows} rows, found ${positionMap.size} unique positions`);
             console.log('Global software map size:', globalSoftwareMap.size);
+            
+            // Log software by category totals
+            let centralTotal = 0, otherTotal = 0, salesTotal = 0;
+            positionMap.forEach(pos => {
+                if (pos.softwareByCategory) {
+                    centralTotal += pos.softwareByCategory.central.size;
+                    otherTotal += pos.softwareByCategory.other.size;
+                    salesTotal += pos.softwareByCategory.sales.size;
+                }
+            });
+            console.log(`Software totals - Central: ${centralTotal}, Other: ${otherTotal}, Sales: ${salesTotal}`);
 
             allData = Array.from(positionMap.values()).map(pos => ({
                 position: pos.position,
@@ -700,6 +1042,7 @@
 
             try {
                 updateStats();
+                updateMostCommonSoftware(globalSoftwareMap);
                 generateInsights(globalSoftwareMap);
                 createCharts(globalSoftwareMap);
                 displayData(allData);
@@ -707,6 +1050,7 @@
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('tableContainer').style.display = 'block';
                 document.getElementById('stats').style.display = 'flex';
+                document.getElementById('mostCommonSoftware').style.display = 'block';
                 document.getElementById('searchBox').style.display = 'block';
                 document.getElementById('tabsContainer').style.display = 'flex';
                 document.getElementById('exportSection').style.display = 'block';
@@ -726,6 +1070,111 @@
             document.getElementById('totalPositions').textContent = totalPositions;
             document.getElementById('totalEmployees').textContent = totalEmployees;
             document.getElementById('avgSoftware').textContent = avgSoftware;
+        }
+
+        function updateMostCommonSoftware(globalSoftwareMap) {
+            try {
+                console.log('Updating most common software overview...');
+                
+                // Collect software by category
+                const centralSoftwareMap = new Map();
+                const otherSoftwareMap = new Map();
+                const salesSoftwareMap = new Map();
+
+                allData.forEach(item => {
+                    // Central software
+                    item.softwareByCategory.central.forEach(sw => {
+                        centralSoftwareMap.set(sw.name, (centralSoftwareMap.get(sw.name) || 0) + sw.count);
+                    });
+                    
+                    // Other software
+                    item.softwareByCategory.other.forEach(sw => {
+                        otherSoftwareMap.set(sw.name, (otherSoftwareMap.get(sw.name) || 0) + sw.count);
+                    });
+                    
+                    // Sales software
+                    item.softwareByCategory.sales.forEach(sw => {
+                        salesSoftwareMap.set(sw.name, (salesSoftwareMap.get(sw.name) || 0) + sw.count);
+                    });
+                });
+
+                const softwareListContainer = document.getElementById('softwareList');
+                softwareListContainer.innerHTML = '';
+
+                // Create central software section
+                if (centralSoftwareMap.size > 0) {
+                    const centralSection = createSoftwareOverviewSection(
+                        'central', 
+                        '🏢 Central Software', 
+                        centralSoftwareMap, 
+                        10
+                    );
+                    softwareListContainer.appendChild(centralSection);
+                }
+
+                // Create other software section
+                if (otherSoftwareMap.size > 0) {
+                    const otherSection = createSoftwareOverviewSection(
+                        'other', 
+                        '🔧 Other Software', 
+                        otherSoftwareMap, 
+                        10
+                    );
+                    softwareListContainer.appendChild(otherSection);
+                }
+
+                // Create sales software section
+                if (salesSoftwareMap.size > 0) {
+                    const salesSection = createSoftwareOverviewSection(
+                        'sales', 
+                        '💼 Sales Software', 
+                        salesSoftwareMap, 
+                        10
+                    );
+                    softwareListContainer.appendChild(salesSection);
+                }
+
+                console.log('Most common software overview updated successfully');
+            } catch (error) {
+                console.error('Error updating most common software:', error);
+            }
+        }
+
+        function createSoftwareOverviewSection(category, title, softwareMap, maxItems = 10) {
+            const section = document.createElement('div');
+            section.className = `software-overview-item ${category}`;
+
+            const titleDiv = document.createElement('div');
+            titleDiv.className = `software-category-title ${category}`;
+            titleDiv.textContent = title;
+            section.appendChild(titleDiv);
+
+            const softwareList = document.createElement('div');
+            softwareList.className = 'software-name-list';
+
+            // Get top software items
+            const topSoftware = Array.from(softwareMap.entries())
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, maxItems);
+
+            topSoftware.forEach(([name, count]) => {
+                const badge = document.createElement('div');
+                badge.className = 'software-name-badge';
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = name;
+                badge.appendChild(nameSpan);
+                
+                const countSpan = document.createElement('span');
+                countSpan.className = 'software-count-badge';
+                countSpan.textContent = count;
+                badge.appendChild(countSpan);
+                
+                softwareList.appendChild(badge);
+            });
+
+            section.appendChild(softwareList);
+            return section;
         }
 
         function sortTable(column) {
@@ -1089,12 +1538,34 @@
                         insights.push(`🏆 Most requested tool: ${topSoftwareEntry[0]} (${topSoftwareEntry[1]} requests)`);
                     }
                     
+                    // Get top software names for average calculation
+                    const topSoftwareNames = Array.from(globalSoftwareMap.entries())
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 5)
+                        .map(([name]) => name);
+                    
                     insights.push(`📈 Average tools per position: ${avgToolsPerPosition}`);
+                    insights.push(`🔧 Most common software across positions: ${topSoftwareNames.join(', ')}`);
                     
                     if (allData.length > 0) {
+                        // Calculate average by category
+                        const avgCentral = (allData.reduce((sum, pos) => sum + pos.softwareByCategory.central.length, 0) / allData.length).toFixed(1);
+                        const avgOther = (allData.reduce((sum, pos) => sum + pos.softwareByCategory.other.length, 0) / allData.length).toFixed(1);
+                        const avgSales = (allData.reduce((sum, pos) => sum + pos.softwareByCategory.sales.length, 0) / allData.length).toFixed(1);
+                        
+                        insights.push(`📋 Average by category - Central: ${avgCentral}, Other: ${avgOther}, Sales: ${avgSales}`);
+                        
                         const highDemandPositions = allData.filter(pos => pos.software.length > avgToolsPerPosition * 1.5);
                         if (highDemandPositions.length > 0) {
                             insights.push(`🎯 ${highDemandPositions.length} positions require significantly more tools than average`);
+                            
+                            // Show which positions need the most tools
+                            const topDemandPositions = allData
+                                .sort((a, b) => b.software.length - a.software.length)
+                                .slice(0, 3)
+                                .map(pos => `${pos.position} (${pos.software.length} tools)`);
+                            
+                            insights.push(`🔝 Highest tool requirements: ${topDemandPositions.join(', ')}`);
                         }
                     }
 
